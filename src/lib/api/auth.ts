@@ -29,9 +29,13 @@ export const authApi = {
   register: (email: string, password: string, fullName: string) =>
     api.post<AuthResult>("/auth/register", { email, password, fullName }),
 
-  magicLinkSend: (email: string) =>
-    api.post<{ message: string; devLink?: string }>("/auth/magic-link/send", { email }),
+  magicLinkSend: (email: string, deviceId?: string) =>
+    api.post<{ message: string; devLink?: string }>("/auth/magic-link/send", { email, deviceId }),
 
   magicLinkVerify: (token: string, email: string) =>
     api.post<AuthResult>("/auth/magic-link/verify", { token, email }),
+
+  // Cross-device sign-in: poll until the link is opened on any device.
+  magicLinkPoll: (deviceId: string) =>
+    api.post<{ pending?: boolean } & Partial<AuthResult>>("/auth/magic-link/poll", { deviceId }),
 };

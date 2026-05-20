@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bot, Eye, EyeOff, ArrowRight, Loader2, AlertCircle, Mail, Lock,
@@ -32,6 +32,7 @@ export default function LoginPage() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const deviceIdRef = useRef<string | null>(null);
 
   // Password (dev) fallback
   const [showPwd, setShowPwd] = useState(false);
@@ -50,12 +51,21 @@ export default function LoginPage() {
     router.push("/overview");
   }
 
+  function newDeviceId() {
+    try {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID() + crypto.randomUUID();
+    } catch { /* fall through */ }
+    return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now();
+  }
+
   async function sendMagicLink(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim()) return setError("Enter your email");
     setError(null); setSending(true);
+    const deviceId = newDeviceId();
+    deviceIdRef.current = deviceId;
     try {
-      await authApi.magicLinkSend(email.trim());
+      await authApi.magicLinkSend(email.trim(), deviceId);
       setSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send link");
@@ -63,6 +73,22 @@ export default function LoginPage() {
       setSending(false);
     }
   }
+
+  // Cross-device sign-in: once the link is sent, poll until it's opened on ANY
+  // device (e.g. the user's phone) — then this device logs in automatically.
+  useEffect(() => {
+    if (!sent || !deviceIdRef.current) return;
+    let stopped = false;
+    const id = setInterval(async () => {
+      try {
+        const res = await authApi.magicLinkPoll(deviceIdRef.current!);
+        if (stopped || !res?.token) return;
+        clearInterval(id);
+        await finishAuth(res as AuthResult);
+      } catch { /* keep polling */ }
+    }, 3000);
+    return () => { stopped = true; clearInterval(id); };
+  }, [sent]);
 
   async function passwordLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -151,7 +177,13 @@ export default function LoginPage() {
               <p style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", marginTop: 8, lineHeight: 1.6 }}>
                 We sent a sign-in link to <span style={{ color: "#fff", fontWeight: 600 }}>{email}</span>. It expires in 15 minutes and can be used once.
               </p>
-              <button onClick={() => setSent(false)} style={{ marginTop: 20, background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 18, padding: "11px 13px", borderRadius: 10, background: "rgba(201,243,29,0.06)", border: "1px solid rgba(201,243,29,0.18)" }}>
+                <Loader2 size={15} className="auth-spin" style={{ color: LIME, flexShrink: 0 }} />
+                <span style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.5, textAlign: "left" }}>
+                  Waiting for you to open it… you can open the link on your <strong style={{ color: "#fff" }}>phone</strong> — this page will sign you in automatically.
+                </span>
+              </div>
+              <button onClick={() => setSent(false)} style={{ marginTop: 18, background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" }}>
                 Use a different email
               </button>
             </div>
