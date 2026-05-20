@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getApiBase } from "@/lib/apiBase";
 
 const LIME = "#C9F31D";
 
@@ -40,7 +41,7 @@ export default function BrandLogo({
   // /ad blockers and third-party flakiness can't break it. The backend resolves
   // Google → DuckDuckGo server-side and caches the result; if it has no real
   // icon it 404s and we fall back to the letter avatar below.
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+  const apiBase = getApiBase();
   const [failed, setFailed] = useState(false);
 
   // Reset the error state whenever the domain changes (switching brands).

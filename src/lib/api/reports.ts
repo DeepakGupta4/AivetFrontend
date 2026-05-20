@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+import { getApiBase } from "../apiBase";
 
 /**
  * Download a project's PDF report. Fetches the binary with the auth header and
@@ -6,7 +6,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
  */
 export async function downloadReportPdf(projectId: string, filename: string): Promise<void> {
   const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-  const res = await fetch(`${BASE_URL}/reports/projects/${projectId}/pdf`, {
+  const res = await fetch(`${getApiBase()}/reports/projects/${projectId}/pdf`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) {

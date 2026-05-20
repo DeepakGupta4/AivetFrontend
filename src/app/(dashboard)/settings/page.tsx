@@ -5,6 +5,7 @@ import Topbar from "@/components/shared/Topbar";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { projectsApi } from "@/lib/api/projects";
 import { teamApi, type TeamData } from "@/lib/api/team";
+import { getApiBase } from "@/lib/apiBase";
 import {
   FolderOpen, Users, Key, Bell, CheckCircle2, Copy, Loader2, AlertCircle,
 } from "lucide-react";
@@ -105,7 +106,7 @@ export default function SettingsPage() {
     }
   }
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+  const apiBase = getApiBase();
 
   return (
     <div style={{ background: "#0E0F11", minHeight: "100vh" }}>
