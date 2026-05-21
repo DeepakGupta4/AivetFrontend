@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import {
-  Sparkles, Target, Link2, FileText, Star, Globe, Code2, RefreshCw, ArrowRight,
+  Sparkles, Target, Link2, FileText, Star, Globe, Code2, RefreshCw, ArrowRight, Rocket,
 } from "lucide-react";
 
 const LIME = "#C9F31D";
@@ -63,7 +63,7 @@ export default function VisibilityBoostGuide({
         <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, background: "rgba(201,243,29,0.14)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Sparkles size={20} style={{ color: LIME }} />
         </div>
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: "#fff", margin: 0 }}>
             {brandName} is barely visible in AI answers — here&apos;s how to grow it
           </h3>
@@ -71,6 +71,24 @@ export default function VisibilityBoostGuide({
             AI engines recommend brands they repeatedly see across trusted sources. Follow these steps to get ChatGPT, Gemini, Claude &amp; Perplexity to start mentioning you.
           </p>
         </div>
+
+        {/* Boost AI Visibility — teaser (auto done-for-you, coming soon) */}
+        <button
+          type="button"
+          disabled
+          title="Automated done-for-you visibility boosting — coming soon"
+          style={{
+            flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "10px 16px", borderRadius: 10, border: "1px solid rgba(201,243,29,0.35)",
+            background: "rgba(201,243,29,0.10)", color: LIME, fontSize: 13, fontWeight: 700,
+            cursor: "not-allowed",
+          }}
+        >
+          <Rocket size={15} /> Boost AI Visibility
+          <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", padding: "2px 7px", borderRadius: 999, background: LIME, color: "#000", textTransform: "uppercase" }}>
+            Coming soon
+          </span>
+        </button>
       </div>
 
       {/* Steps */}
