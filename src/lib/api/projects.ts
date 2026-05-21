@@ -29,6 +29,7 @@ export const projectsApi = {
   list:   () => api.get<ProjectDTO[]>("/projects"),
   create: (payload: CreateProjectPayload) => api.post<ProjectDTO>("/projects", payload),
   update: (id: string, payload: Partial<CreateProjectPayload>) => api.put<ProjectDTO>(`/projects/${id}`, payload),
+  remove: (id: string) => api.delete<{ success: boolean }>(`/projects/${id}`),
 
   listCompetitors:  (id: string) => api.get<CompetitorEntry[]>(`/projects/${id}/competitors`),
   addCompetitor:    (id: string, payload: { brandName: string; domain: string }) =>

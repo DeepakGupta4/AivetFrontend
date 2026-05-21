@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, Plus, Check } from "lucide-react";
+import { ChevronDown, Plus, Check, Trash2 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { projectsApi, type ProjectDTO } from "@/lib/api/projects";
 import BrandLogo from "@/components/shared/BrandLogo";
@@ -10,10 +10,11 @@ import AddBrandModal from "./AddBrandModal";
 const LIME = "#C9F31D";
 
 export default function ProjectSwitcher() {
-  const token      = useAuthStore((s) => s.token);
-  const project    = useAuthStore((s) => s.project);
-  const projectId  = useAuthStore((s) => s.projectId);
-  const setProject = useAuthStore((s) => s.setProject);
+  const token        = useAuthStore((s) => s.token);
+  const project      = useAuthStore((s) => s.project);
+  const projectId    = useAuthStore((s) => s.projectId);
+  const setProject   = useAuthStore((s) => s.setProject);
+  const clearProject = useAuthStore((s) => s.clearProject);
 
   const [projects, setProjects] = useState<ProjectDTO[]>([]);
   const [open, setOpen] = useState(false);
@@ -41,6 +42,22 @@ export default function ProjectSwitcher() {
     setProject({ id: p._id, name: p.name, domain: p.domain, brandName: p.brandName });
     setShowModal(false);
     setOpen(false);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, p: ProjectDTO) => {
+    e.stopPropagation();
+    if (!confirm(`Delete "${p.name}"? This removes the brand and its tracking data from your dashboard.`)) return;
+    try {
+      await projectsApi.remove(p._id);
+      const remaining = projects.filter((x) => x._id !== p._id);
+      setProjects(remaining);
+      if (projectId === p._id) {
+        if (remaining.length) switchTo(remaining[0]);
+        else { clearProject(); setOpen(false); }
+      }
+    } catch {
+      alert("Could not delete the brand. Please try again.");
+    }
   };
 
   return (
@@ -115,25 +132,40 @@ export default function ProjectSwitcher() {
                 projects.map((p) => {
                   const active = p._id === projectId;
                   return (
-                    <button
+                    <div
                       key={p._id}
-                      onClick={() => switchTo(p)}
+                      className="group"
                       style={{
-                        width: "100%", display: "flex", alignItems: "center", gap: 9,
-                        padding: "8px 8px", borderRadius: 7, border: "none", cursor: "pointer",
+                        display: "flex", alignItems: "center", borderRadius: 7,
                         background: active ? "rgba(201,243,29,0.08)" : "transparent",
-                        textAlign: "left",
                       }}
                       onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"; }}
                       onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                     >
-                      <BrandLogo domain={p.domain} name={p.name} size={22} radius={6} fallbackBg={active ? LIME : "rgba(255,255,255,0.10)"} fallbackColor={active ? "#000" : "#fff"} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 12.5, fontWeight: 500, color: "#fff", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</p>
-                        <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.domain}</p>
-                      </div>
-                      {active && <Check size={14} style={{ color: LIME, flexShrink: 0 }} />}
-                    </button>
+                      <button
+                        onClick={() => switchTo(p)}
+                        style={{
+                          flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 9,
+                          padding: "8px 8px", border: "none", cursor: "pointer", background: "transparent", textAlign: "left",
+                        }}
+                      >
+                        <BrandLogo domain={p.domain} name={p.name} size={22} radius={6} fallbackBg={active ? LIME : "rgba(255,255,255,0.10)"} fallbackColor={active ? "#000" : "#fff"} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 12.5, fontWeight: 500, color: "#fff", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</p>
+                          <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.domain}</p>
+                        </div>
+                        {active && <Check size={14} style={{ color: LIME, flexShrink: 0 }} />}
+                      </button>
+                      <button
+                        onClick={(e) => handleDelete(e, p)}
+                        title={`Delete ${p.name}`}
+                        style={{ flexShrink: 0, padding: "6px 9px", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center" }}
+                        onMouseEnter={(e) => { (e.currentTarget.firstChild as HTMLElement).style.color = "#EF4444"; }}
+                        onMouseLeave={(e) => { (e.currentTarget.firstChild as HTMLElement).style.color = "rgba(255,255,255,0.3)"; }}
+                      >
+                        <Trash2 size={13} style={{ color: "rgba(255,255,255,0.3)", transition: "color .15s" }} />
+                      </button>
+                    </div>
                   );
                 })
               )}
