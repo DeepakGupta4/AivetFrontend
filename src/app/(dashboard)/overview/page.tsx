@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
 import RunAuditModal from "@/components/shared/RunAuditModal";
+import VisibilityBoostGuide from "@/components/shared/VisibilityBoostGuide";
 import KPICard from "@/components/dashboard/KPICard";
 import ScoreGauge from "@/components/charts/ScoreGauge";
 import TrendChart from "@/components/charts/TrendChart";
@@ -124,6 +125,9 @@ export default function OverviewPage() {
   const citations     = k?.citationsFound     ?? 93;
   const competitorsN  = k?.competitorsTracked ?? 4;
   const modelsActive  = k?.modelsActive       ?? 4;
+
+  // Show the "how to boost" guide for a real project whose visibility is low.
+  const showBoostGuide = !!projectId && !loading && !!data && score < 20;
 
   // Trend
   const trendData: TrendPoint[] = data?.trend.length
@@ -297,6 +301,11 @@ export default function OverviewPage() {
             <Link href="/visibility"  style={{ textDecoration: "none" }}><KPICard loading={loading} title="AI Models Active"      value={modelsActive}  icon={Bot}     iconColor="#10A37F" /></Link>
           </div>
         </div>
+
+        {/* ── Boost guide (shown when visibility is low) ── */}
+        {showBoostGuide && (
+          <VisibilityBoostGuide brandName={brandName} onRunAudit={() => setShowAudit(true)} />
+        )}
 
         {/* ── ROW 2: Trend Chart + Model Distribution ── */}
         <div style={row}>

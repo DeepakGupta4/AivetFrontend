@@ -5,6 +5,7 @@ import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
 import ScoreGauge from "@/components/charts/ScoreGauge";
 import TrendChart from "@/components/charts/TrendChart";
+import VisibilityBoostGuide from "@/components/shared/VisibilityBoostGuide";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { visibilityApi, type ModelBreakdownDTO } from "@/lib/api/visibility";
 import { engineColors, getScoreBand } from "@/lib/colors";
@@ -149,6 +150,11 @@ export default function VisibilityPage() {
                 <TrendChart data={trend} />
               </div>
             </div>
+
+            {/* Boost guide when visibility is low */}
+            {!loading && !!data && score < 20 && (
+              <VisibilityBoostGuide brandName={project?.brandName ?? "Your brand"} />
+            )}
 
             {/* ROW 2: Per-Model Cards */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 16 }}>
