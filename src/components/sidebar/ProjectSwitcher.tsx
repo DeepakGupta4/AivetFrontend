@@ -5,7 +5,7 @@ import { ChevronDown, Plus, Check, Trash2 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { projectsApi, type ProjectDTO } from "@/lib/api/projects";
 import BrandLogo from "@/components/shared/BrandLogo";
-import AddBrandModal from "./AddBrandModal";
+import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 
 const LIME = "#C9F31D";
 
@@ -193,7 +193,7 @@ export default function ProjectSwitcher() {
       )}
 
       {showModal && (
-        <AddBrandModal onClose={() => setShowModal(false)} onCreated={handleCreated} />
+        <OnboardingWizard onClose={() => setShowModal(false)} onCreated={handleCreated} />
       )}
     </div>
   );
