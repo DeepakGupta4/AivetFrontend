@@ -123,7 +123,13 @@ export default function OnboardingWizard({ onClose, onCreated }: Props) {
     keywordsRequested.current = true;
     setKeywordsLoading(true);
     onboardingApi
-      .keywords({ domain: summary.domain, countryCode: summary.countryCode, languageCode: summary.languageCode })
+      .keywords({
+        domain: summary.domain,
+        countryCode: summary.countryCode,
+        languageCode: summary.languageCode,
+        topics: selectedTopics.length ? selectedTopics : summary.topics,
+        brandName: summary.brandName,
+      })
       .then(({ keywords: kw }) => {
         setKeywords(kw.map((k, i) => ({ ...k, selected: i < KEYWORD_PRESELECT })));
       })

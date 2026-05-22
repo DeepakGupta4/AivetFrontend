@@ -67,7 +67,7 @@ export const onboardingApi = {
     language?: string;
   }) => api.post<{ clusters: PromptCluster[] }>("/onboarding/prompts", payload),
 
-  keywords: (payload: { domain: string; countryCode?: string; languageCode?: string }) =>
+  keywords: (payload: { domain: string; countryCode?: string; languageCode?: string; topics?: string[]; brandName?: string }) =>
     api.post<{ keywords: KeywordIdea[] }>("/onboarding/keywords", payload),
 
   complete: (payload: CompletePayload) =>
