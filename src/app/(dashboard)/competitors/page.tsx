@@ -80,7 +80,7 @@ function AddCompetitorModal({ onClose, onSubmit }: { onClose: () => void; onSubm
 export default function CompetitorsPage() {
   const project   = useAuthStore((s) => s.project);
   const projectId = useAuthStore((s) => s.projectId);
-  const { allows, resolved: tierResolved } = useTier();
+  const { tier, allows, resolved: tierResolved, limits } = useTier();
 
   const [days, setDays]       = useState(30);
   const [data, setData]       = useState<CompetitorAnalysis | null>(null);
@@ -187,14 +187,36 @@ export default function CompetitorsPage() {
             </div>
 
             {/* Header action */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.50)", margin: 0 }}>
-                Tracking <span style={{ color: "#fff", fontWeight: 600 }}>{comps.length} competitors</span> across <span style={{ color: "#fff", fontWeight: 600 }}>{models.length || 4} AI models</span>
-              </p>
-              <button onClick={() => setShowAdd(true)} className="btn-lime" style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>
-                <Plus size={14} /> Add Competitor
-              </button>
-            </div>
+            {(() => {
+              const competitorLimit = limits?.competitorLimit ?? 5;
+              const atLimit = comps.length >= competitorLimit;
+              return (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.50)", margin: 0 }}>
+                    Tracking <span style={{ color: "#fff", fontWeight: 600 }}>{comps.length}/{competitorLimit} competitors</span> across <span style={{ color: "#fff", fontWeight: 600 }}>{models.length || 4} AI models</span>
+                  </p>
+                  {atLimit ? (
+                    <Link
+                      href="/pricing"
+                      style={{
+                        display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", fontSize: 13,
+                        textDecoration: "none", borderRadius: 8,
+                        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)",
+                        color: "rgba(255,255,255,0.70)",
+                      }}
+                      title={`Your ${tier} plan allows ${competitorLimit} competitors per brand`}
+                    >
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, background: "rgba(201,243,29,0.14)", color: LIME, letterSpacing: "0.04em" }}>UPGRADE</span>
+                      Add Competitor
+                    </Link>
+                  ) : (
+                    <button onClick={() => setShowAdd(true)} className="btn-lime" style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>
+                      <Plus size={14} /> Add Competitor
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
 
             {entities.length <= 1 && !loading ? (
               <div style={{ ...card, padding: 40, textAlign: "center" }}>

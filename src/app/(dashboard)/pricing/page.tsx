@@ -9,38 +9,46 @@ import { Check, Crown, Zap, Building2, Loader2, AlertCircle, Tag } from "lucide-
 const LIME = "#C9F31D";
 const card: React.CSSProperties = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14 };
 
-// Mirrors dixor's AIVET_PLANS (USD/month). checkoutPlan maps to our internal id.
+// Honest plan features — only listing what's actually shipped today.
+// Internal id "pro" renders publicly as "Business".
 const PLANS = [
   {
-    id: "starter", name: "Starter", price: 50, checkoutPlan: "starter", icon: Zap, color: "#22B8CF", highlighted: false,
+    id: "starter", name: "Starter", price: 10, checkoutPlan: "starter", icon: Zap, color: "#22B8CF", highlighted: false,
     features: [
-      "1 brand tracked, up to 3 competitors",
+      "1 brand tracked",
+      "Up to 5 competitors per brand",
       "All 5 AI engines (ChatGPT, Gemini, Claude, Perplexity, Google AI)",
-      "Weekly automatic re-runs with trend graph",
-      "Email digest reports",
-      "Top 5 recommendations per audit",
+      "Up to 6 prompts per audit",
+      "Weekly auto-audit cadence",
+      "Visibility scoring + trend tracking",
+      "Citations tracking",
+      "PDF report export",
     ],
   },
   {
-    id: "professional", name: "Professional", price: 129, checkoutPlan: "pro", icon: Crown, color: LIME, highlighted: true,
+    id: "business", name: "Business", price: 20, checkoutPlan: "pro", icon: Crown, color: LIME, highlighted: true,
     features: [
-      "3 brands tracked, up to 5 competitors each",
-      "All 5 AI engines + daily monitoring",
-      "Slack & email alerts on score drops",
-      "Full content briefs — schema, copy, PR plays",
-      "Pre-launch query simulation",
-      "Quarterly trend report",
+      "7 brands tracked",
+      "Up to 10 competitors per brand",
+      "All 5 AI engines + per-engine factor breakdown",
+      "Up to 8 prompts per audit",
+      "Daily auto-audit cadence",
+      "Everything in Starter",
+      "GEO recommendations engine",
+      "Competitor share-of-voice analysis",
     ],
   },
   {
-    id: "enterprise", name: "Enterprise", price: 350, checkoutPlan: "enterprise", icon: Building2, color: "#C084FC", highlighted: false,
+    id: "enterprise", name: "Enterprise", price: 49, checkoutPlan: "enterprise", icon: Building2, color: "#C084FC", highlighted: false,
     features: [
-      "10 brands tracked, up to 10 competitors each",
-      "All 5 AI engines + real-time monitoring",
-      "Advanced engines: cart-stage & persona prompts",
-      "Draft copy generation",
-      "API access for integrations",
-      "Quarterly strategy call + priority support",
+      "15 brands tracked",
+      "Up to 15 competitors per brand",
+      "All 5 AI engines + advanced factor breakdown",
+      "Up to 8 prompts per audit",
+      "Daily auto-audit cadence",
+      "Everything in Business",
+      "Bulk PDF report generation",
+      "Priority email support",
     ],
   },
 ];
@@ -70,7 +78,7 @@ export default function PricingPage() {
 
   return (
     <div style={{ background: "#0E0F11", minHeight: "100vh" }}>
-      <Topbar title="Plans & Pricing" subtitle="Upgrade to unlock more brands, engines & insights" />
+      <Topbar title="Plans & Pricing" subtitle="Free preview includes 1 brand. Upgrade to unlock more domains, keywords & AI credits" />
       <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20, maxWidth: 1000 }}>
 
         {canceled && (

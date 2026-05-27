@@ -5,7 +5,7 @@ export interface SubscriptionData {
   status:            string;
   currentPeriodEnd:  string | null;
   cancelAtPeriodEnd: boolean;
-  limits:            { promptLimit: number; projectLimit: number };
+  limits:            { promptLimit: number; projectLimit: number; competitorLimit: number };
   usage:             { promptsUsed: number; projectsUsed: number };
 }
 

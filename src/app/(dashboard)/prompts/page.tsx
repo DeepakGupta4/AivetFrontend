@@ -5,22 +5,40 @@ import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
 import CreateCampaignModal from "@/components/prompts/CreateCampaignModal";
 import RunAuditModal from "@/components/shared/RunAuditModal";
+import LockedFeature from "@/components/shared/LockedFeature";
 import { useAuthStore } from "@/lib/stores/authStore";
+import { useTier } from "@/lib/hooks/useTier";
 import { campaignsApi, type CampaignDTO, type PromptRunDTO } from "@/lib/api/campaigns";
 import { engineColors } from "@/lib/colors";
 import {
   Zap, Plus, Play, Pause, Trash2, Loader2, Sparkles, Clock,
-  CheckCircle2, XCircle, AlertCircle, RefreshCw, ArrowRight,
+  CheckCircle2, XCircle, AlertCircle, RefreshCw, ArrowRight, HelpCircle,
+  MessageSquare,
 } from "lucide-react";
 
 const LIME = "#C9F31D";
-const card: React.CSSProperties = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12 };
+const card: React.CSSProperties = {
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 12,
+};
 
-const STATUS: Record<string, { label: string; color: string }> = {
-  pending:   { label: "Pending",   color: "#F59E0B" },
-  running:   { label: "Running",   color: "#22B8CF" },
-  completed: { label: "Completed", color: "#22C55E" },
-  failed:    { label: "Failed",    color: "#EF4444" },
+const STATUS: Record<string, { label: string; color: string; help: string }> = {
+  pending:   { label: "Waiting",    color: "#F59E0B", help: "Queued to be sent to AI engines" },
+  running:   { label: "Asking AI",  color: "#22B8CF", help: "Sending the question to the engines" },
+  completed: { label: "Done",       color: "#22C55E", help: "AI engines answered successfully" },
+  failed:    { label: "Failed",     color: "#EF4444", help: "Couldn't reach an engine — try Run again" },
+};
+
+const ENGINE_LABEL: Record<string, string> = {
+  chatgpt: "ChatGPT", gemini: "Gemini", claude: "Claude",
+  perplexity: "Perplexity", google_ai_overview: "Google AI",
+};
+
+const CADENCE_LABEL: Record<string, string> = {
+  hourly: "every hour",
+  daily:  "every day",
+  weekly: "every week",
 };
 
 function timeAgo(d?: string): string {
@@ -34,9 +52,21 @@ function timeAgo(d?: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function timeUntil(d?: string): string {
+  if (!d) return "—";
+  const diff = new Date(d).getTime() - Date.now();
+  if (diff < 0) return "due now";
+  const m = Math.floor(diff / 60000);
+  if (m < 60) return `in ${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `in ${h}h`;
+  return `in ${Math.floor(h / 24)}d`;
+}
+
 export default function PromptsPage() {
   const project   = useAuthStore((s) => s.project);
   const projectId = useAuthStore((s) => s.projectId);
+  const { allows, resolved: tierResolved, tier, limits, usage } = useTier();
 
   const [campaigns, setCampaigns] = useState<CampaignDTO[]>([]);
   const [runs, setRuns]           = useState<PromptRunDTO[]>([]);
@@ -78,7 +108,6 @@ export default function PromptsPage() {
     setNotice(null);
     try {
       await campaignsApi.run(c._id);
-      // Poll until this campaign's latest runs settle (max ~75s)
       for (let i = 0; i < 25; i++) {
         await new Promise((r) => setTimeout(r, 3000));
         const r = await campaignsApi.runs(c._id).catch(() => [] as PromptRunDTO[]);
@@ -89,7 +118,7 @@ export default function PromptsPage() {
         const active = r.some((x) => x.status === "pending" || x.status === "running");
         if (!active) break;
       }
-      setNotice(`Run finished for "${c.name}". Check the Overview for updated scores.`);
+      setNotice(`Done. "${c.name}" finished checking — see your latest visibility scores in Overview.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Run failed");
     } finally {
@@ -103,71 +132,112 @@ export default function PromptsPage() {
   }
 
   async function handleDelete(c: CampaignDTO) {
+    if (!confirm(`Delete "${c.name}"? This stops tracking these questions.`)) return;
     setCampaigns((prev) => prev.filter((x) => x._id !== c._id));
     setRuns((prev) => prev.filter((x) => x.campaignId !== c._id));
     await campaignsApi.remove(c._id).catch(() => {});
   }
 
-  // Stats
+  if (tierResolved && !allows("prompts")) {
+    return <LockedFeature title="Audits & Campaigns" feature="prompts" subtitle={project ? `${project.name} · ${project.domain}` : undefined} />;
+  }
+
+  // Stats — plain language
   const activeCount = campaigns.filter((c) => c.isActive).length;
-  const totalPrompts = campaigns.reduce((s, c) => s + (c.prompts?.length ?? 0), 0);
+  const pausedCount = campaigns.length - activeCount;
   const completedRuns = runs.filter((r) => r.status === "completed").length;
+  const failedRuns = runs.filter((r) => r.status === "failed").length;
   const lastRun = runs[0]?.createdAt;
 
-  const stats = [
-    { label: "Active Campaigns", value: activeCount,      icon: Zap,          color: LIME },
-    { label: "Total Prompts",    value: totalPrompts,     icon: Sparkles,     color: "#C084FC" },
-    { label: "Completed Runs",   value: completedRuns,    icon: CheckCircle2, color: "#22C55E" },
-    { label: "Last Run",         value: timeAgo(lastRun), icon: Clock,        color: "#22B8CF" },
-  ];
+  // Monthly prompt-budget usage (matches the billing copy: 50/250/500/1000)
+  const promptLimit = limits?.promptLimit ?? 0;
+  const promptsUsed = usage?.promptsUsed ?? 0;
+  const usagePct = promptLimit > 0 ? Math.min(100, Math.round((promptsUsed / promptLimit) * 100)) : 0;
+  const usageColor = usagePct >= 90 ? "#EF4444" : usagePct >= 70 ? "#F59E0B" : "#22C55E";
+  void tier;
 
   return (
     <div style={{ background: "#0E0F11", minHeight: "100vh" }}>
-      <Topbar title="Prompt Campaigns" subtitle={project ? `${project.name} · ${project.domain}` : undefined} />
+      <Topbar title="Audits & Campaigns" subtitle={project ? `${project.name} · ${project.domain}` : undefined} />
 
       <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
 
-        {/* No project */}
         {!projectId && (
           <div style={{ ...card, padding: 40, textAlign: "center" }}>
             <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", margin: 0 }}>
-              Select or add a brand from the sidebar to manage prompt campaigns.
+              Select or add a brand from the sidebar to start tracking AI mentions.
             </p>
           </div>
         )}
 
         {projectId && (
           <>
-            {/* Action bar */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", margin: 0 }}>
-                Track how AI engines mention <strong style={{ color: "#fff" }}>{project?.brandName}</strong> across your prompts.
-              </p>
-              <div style={{ display: "flex", gap: 10 }}>
+            {/* 1. Explainer */}
+            <div style={{ ...card, padding: "18px 22px", display: "flex", gap: 14, alignItems: "flex-start" }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: `${LIME}18`, border: `1px solid ${LIME}30`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <HelpCircle size={18} style={{ color: LIME }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>
+                  How does this work?
+                </p>
+                <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.65)", margin: 0, lineHeight: 1.55 }}>
+                  We ask AI engines (ChatGPT, Gemini, Claude, Perplexity, Google AI) real questions about your industry and check if they mention <strong style={{ color: "#fff" }}>{project?.brandName}</strong>. You have two options:
+                  {" "}<strong style={{ color: "#fff" }}>Quick audit</strong> runs once with auto-generated questions.
+                  {" "}<strong style={{ color: "#fff" }}>Campaigns</strong> are saved question sets that re-run automatically on a schedule.
+                </p>
+              </div>
+            </div>
+
+            {/* 2. Primary CTAs */}
+            <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 14 }}>
+              {/* Quick audit — primary */}
+              <div style={{ ...card, padding: "20px 22px", display: "flex", gap: 16, alignItems: "center", background: `${LIME}06`, borderColor: `${LIME}33` }}>
+                <div style={{ width: 44, height: 44, borderRadius: 11, background: `${LIME}18`, border: `1px solid ${LIME}30`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Sparkles size={20} style={{ color: LIME }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13.5, fontWeight: 700, color: "#fff", margin: "0 0 3px" }}>Run a quick audit</p>
+                  <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)", margin: 0, lineHeight: 1.5 }}>
+                    One-click. We generate the questions for you. Takes ~15-30 seconds.
+                  </p>
+                </div>
                 <button
                   onClick={() => setShowAudit(true)}
-                  className="btn-ghost"
-                  style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", fontSize: 12.5, cursor: "pointer" }}
+                  className="btn-lime"
+                  style={{ padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                 >
-                  <Sparkles size={14} /> Run Audit
+                  Start audit
                 </button>
+              </div>
+
+              {/* New campaign — secondary */}
+              <div style={{ ...card, padding: "20px 22px", display: "flex", gap: 14, alignItems: "center" }}>
+                <div style={{ width: 44, height: 44, borderRadius: 11, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <MessageSquare size={20} style={{ color: "rgba(255,255,255,0.65)" }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13.5, fontWeight: 700, color: "#fff", margin: "0 0 3px" }}>Save custom questions</p>
+                  <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)", margin: 0, lineHeight: 1.5 }}>
+                    Write your own questions to track on a schedule.
+                  </p>
+                </div>
                 <button
                   onClick={() => setShowCreate(true)}
-                  className="btn-lime"
-                  style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 16px", fontSize: 12.5, cursor: "pointer" }}
+                  style={{ padding: "8px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.85)", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}
                 >
-                  <Plus size={15} /> New Campaign
+                  <Plus size={13} /> New
                 </button>
               </div>
             </div>
 
             {/* Notices */}
             {notice && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 10, background: "rgba(201,243,29,0.07)", border: "1px solid rgba(201,243,29,0.22)" }}>
-                <CheckCircle2 size={15} style={{ color: LIME, flexShrink: 0 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 10, background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.22)" }}>
+                <CheckCircle2 size={15} style={{ color: "#22C55E", flexShrink: 0 }} />
                 <span style={{ fontSize: 12.5, color: "rgba(255,255,255,0.75)", flex: 1 }}>{notice}</span>
                 <Link href="/overview" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 600, color: LIME, textDecoration: "none" }}>
-                  View Overview <ArrowRight size={12} />
+                  See scores <ArrowRight size={12} />
                 </Link>
               </div>
             )}
@@ -182,67 +252,110 @@ export default function PromptsPage() {
               </div>
             )}
 
-            {/* Stats */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-              {stats.map(({ label, value, icon: Icon, color }) => (
-                <div key={label} style={{ ...card, padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>{label}</span>
-                    <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Icon size={14} style={{ color }} />
-                    </div>
+            {/* 3. Stats + monthly budget usage */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              <StatCard
+                value={loading ? "—" : `${campaigns.length}`}
+                label="Saved campaigns"
+                sub={loading ? "" : activeCount > 0 ? `${activeCount} running on auto` : pausedCount > 0 ? "All paused" : "None yet"}
+                color={LIME}
+                Icon={Zap}
+              />
+              <div style={{ ...card, padding: "18px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.55)" }}>Prompts this month</span>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: `${usageColor}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <MessageSquare size={14} style={{ color: usageColor }} />
                   </div>
-                  <span style={{ fontSize: 24, fontWeight: 700, color: "#fff", lineHeight: 1 }}>
-                    {loading ? "—" : value}
-                  </span>
                 </div>
-              ))}
+                <p style={{ fontSize: 28, fontWeight: 800, color: "#fff", lineHeight: 1, letterSpacing: "-0.5px", margin: "0 0 8px" }}>
+                  {loading ? "—" : `${promptsUsed}`}<span style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.35)" }}> / {promptLimit}</span>
+                </p>
+                <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.08)", overflow: "hidden", marginBottom: 5 }}>
+                  <div style={{ height: "100%", borderRadius: 3, width: `${usagePct}%`, background: `linear-gradient(90deg, ${usageColor}88, ${usageColor})`, transition: "width 0.6s ease" }} />
+                </div>
+                <p style={{ fontSize: 11, color: usageColor, margin: 0, fontWeight: usagePct >= 70 ? 600 : 400 }}>
+                  {usagePct >= 90 ? "Almost out — upgrade for more" : usagePct >= 70 ? "Getting close to limit" : `${promptLimit - promptsUsed} left in your monthly budget`}
+                </p>
+              </div>
+              <StatCard
+                value={loading ? "—" : `${completedRuns}`}
+                label="Successful checks"
+                sub={failedRuns > 0 ? `${failedRuns} failed · last: ${timeAgo(lastRun)}` : `Last: ${timeAgo(lastRun)}`}
+                color={failedRuns > completedRuns ? "#EF4444" : "#22C55E"}
+                Icon={CheckCircle2}
+              />
             </div>
 
-            {/* Campaigns */}
-            <div style={{ ...card, padding: 20 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, color: "#fff", margin: "0 0 14px" }}>Campaigns</h3>
+            {/* 4. Campaigns list */}
+            <div style={{ ...card, overflow: "hidden" }}>
+              <div style={{ padding: "16px 22px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "0 0 3px" }}>Your campaigns</p>
+                <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.45)", margin: 0 }}>
+                  Each campaign is a saved set of questions that runs automatically on a schedule.
+                </p>
+              </div>
 
               {loading ? (
-                <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.4)", padding: "20px 0", textAlign: "center" }}>Loading…</p>
+                <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.4)", padding: "30px 0", textAlign: "center" }}>Loading…</p>
               ) : campaigns.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "28px 0" }}>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 14px" }}>
-                    No campaigns yet. Create one and hit “Run now” to query live AI engines for real visibility data.
+                <div style={{ textAlign: "center", padding: "36px 24px" }}>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 14px", lineHeight: 1.5 }}>
+                    No campaigns yet. Use <strong style={{ color: "#fff" }}>Start audit</strong> above for a one-click test,
+                    {" "}or <strong style={{ color: "#fff" }}>New</strong> to write your own questions.
                   </p>
-                  <button onClick={() => setShowCreate(true)} className="btn-lime" style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", fontSize: 12.5, cursor: "pointer" }}>
-                    <Plus size={15} /> New Campaign
-                  </button>
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {campaigns.map((c) => {
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {campaigns.map((c, i) => {
                     const isRunning = running.has(c._id);
+                    const promptCount = c.prompts?.length ?? 0;
                     return (
-                      <div key={c._id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 10, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <div
+                        key={c._id}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 14,
+                          padding: "16px 22px",
+                          borderBottom: i < campaigns.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                        }}
+                      >
+                        <div style={{ width: 38, height: 38, borderRadius: 10, background: c.isActive ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.05)", border: c.isActive ? "1px solid rgba(34,197,94,0.20)" : "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <Zap size={16} style={{ color: c.isActive ? "#22C55E" : "rgba(255,255,255,0.40)" }} />
+                        </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <span style={{ fontSize: 13.5, fontWeight: 600, color: "#fff" }}>{c.name}</span>
-                            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 5, textTransform: "capitalize", background: c.isActive ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.08)", color: c.isActive ? "#22C55E" : "rgba(255,255,255,0.5)" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: c.isActive ? "rgba(34,197,94,0.14)" : "rgba(255,255,255,0.08)", color: c.isActive ? "#22C55E" : "rgba(255,255,255,0.5)" }}>
                               {c.isActive ? "Active" : "Paused"}
                             </span>
                           </div>
-                          <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.4)", margin: "4px 0 0" }}>
-                            {c.prompts?.length ?? 0} prompts · {c.frequency} · next run {timeAgo(c.nextRunAt)}
+                          <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.50)", margin: "5px 0 0", lineHeight: 1.45 }}>
+                            <strong style={{ color: "#fff" }}>{promptCount}</strong> question{promptCount === 1 ? "" : "s"} ·
+                            {" "}runs <strong style={{ color: "#fff" }}>{CADENCE_LABEL[c.frequency] ?? c.frequency}</strong>
+                            {c.isActive && c.nextRunAt ? <> · next check {timeUntil(c.nextRunAt)}</> : null}
                           </p>
                         </div>
 
                         <button
                           onClick={() => handleRun(c)}
                           disabled={isRunning}
-                          style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 8, border: "none", cursor: isRunning ? "default" : "pointer", background: "rgba(201,243,29,0.12)", color: LIME, fontSize: 12, fontWeight: 600 }}
+                          title="Send these questions to AI engines right now"
+                          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "none", cursor: isRunning ? "default" : "pointer", background: isRunning ? "rgba(255,255,255,0.08)" : `${LIME}18`, color: isRunning ? "rgba(255,255,255,0.6)" : LIME, fontSize: 12, fontWeight: 700 }}
                         >
-                          {isRunning ? <><Loader2 size={13} className="auth-spin" /> Running…</> : <><Play size={13} /> Run now</>}
+                          {isRunning ? <><Loader2 size={13} className="auth-spin" /> Asking AI…</> : <><Play size={12} /> Run now</>}
                         </button>
-                        <button onClick={() => handleToggle(c)} title={c.isActive ? "Pause" : "Resume"} style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <button
+                          onClick={() => handleToggle(c)}
+                          title={c.isActive ? "Pause auto-runs" : "Resume auto-runs"}
+                          style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                        >
                           {c.isActive ? <Pause size={13} style={{ color: "rgba(255,255,255,0.6)" }} /> : <Play size={13} style={{ color: "rgba(255,255,255,0.6)" }} />}
                         </button>
-                        <button onClick={() => handleDelete(c)} title="Delete" style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <button
+                          onClick={() => handleDelete(c)}
+                          title="Delete this campaign"
+                          style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                        >
                           <Trash2 size={13} style={{ color: "#EF4444" }} />
                         </button>
                       </div>
@@ -252,39 +365,53 @@ export default function PromptsPage() {
               )}
             </div>
 
-            {/* Recent runs */}
-            <div style={{ ...card, padding: 20 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, color: "#fff", margin: "0 0 14px" }}>Recent Runs</h3>
+            {/* 5. Recent runs */}
+            <div style={{ ...card, overflow: "hidden" }}>
+              <div style={{ padding: "16px 22px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#fff", margin: "0 0 3px" }}>Recent activity</p>
+                <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.45)", margin: 0 }}>
+                  Each row is one question sent to AI engines. Done = answer captured, Failed = couldn't reach an engine.
+                </p>
+              </div>
               {runs.length === 0 ? (
-                <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.4)", padding: "16px 0", textAlign: "center" }}>
-                  No runs yet — hit “Run now” on a campaign.
+                <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.4)", padding: "30px 0", textAlign: "center" }}>
+                  No activity yet — hit <strong style={{ color: "#fff" }}>Start audit</strong> above to send your first question.
                 </p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 160px 90px", gap: 12, padding: "0 4px 10px", borderBottom: "1px solid rgba(255,255,255,0.06)", fontSize: 10.5, fontWeight: 600, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                    <span>Prompt</span><span>Status</span><span>Engines</span><span>Time</span>
-                  </div>
-                  {runs.slice(0, 12).map((r) => {
+                  {runs.slice(0, 15).map((r, i) => {
                     const st = STATUS[r.status] ?? STATUS.pending;
                     return (
-                      <div key={r._id} style={{ display: "grid", gridTemplateColumns: "1fr 120px 160px 90px", gap: 12, padding: "11px 4px", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "center" }}>
-                        <span style={{ fontSize: 12.5, color: "rgba(255,255,255,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.promptText}</span>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, color: st.color }}>
-                          {r.status === "running" ? <Loader2 size={11} className="auth-spin" /> : r.status === "completed" ? <CheckCircle2 size={11} /> : r.status === "failed" ? <XCircle size={11} /> : <Clock size={11} />}
+                      <div
+                        key={r._id}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 14,
+                          padding: "12px 22px",
+                          borderBottom: i < Math.min(runs.length, 15) - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.80)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.promptText}>
+                            {r.promptText}
+                          </p>
+                          <p style={{ fontSize: 10.5, color: st.color, margin: "3px 0 0", opacity: 0.85 }} title={st.help}>{st.help}</p>
+                        </div>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: st.color, minWidth: 84 }}>
+                          {r.status === "running" ? <Loader2 size={12} className="auth-spin" /> : r.status === "completed" ? <CheckCircle2 size={12} /> : r.status === "failed" ? <XCircle size={12} /> : <Clock size={12} />}
                           {st.label}
                         </span>
-                        <span style={{ display: "flex", gap: 4 }}>
+                        <div style={{ display: "flex", gap: 4, minWidth: 130 }}>
                           {(r.responses ?? []).length === 0 ? (
                             <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>—</span>
                           ) : (
-                            (r.responses ?? []).map((resp, i) => (
-                              <span key={i} title={resp.model} style={{ width: 18, height: 18, borderRadius: 5, fontSize: 8, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", background: `${engineColors[resp.model] ?? "#888"}22`, color: engineColors[resp.model] ?? "#aaa" }}>
-                                {resp.model.slice(0, 2).toUpperCase()}
+                            (r.responses ?? []).map((resp, idx) => (
+                              <span key={idx} title={ENGINE_LABEL[resp.model] ?? resp.model} style={{ width: 20, height: 20, borderRadius: 5, fontSize: 8.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", background: `${engineColors[resp.model] ?? "#888"}22`, color: engineColors[resp.model] ?? "#aaa" }}>
+                                {(ENGINE_LABEL[resp.model] ?? resp.model).slice(0, 2).toUpperCase()}
                               </span>
                             ))
                           )}
-                        </span>
-                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{timeAgo(r.createdAt)}</span>
+                        </div>
+                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", minWidth: 70, textAlign: "right" }}>{timeAgo(r.createdAt)}</span>
                       </div>
                     );
                   })}
@@ -313,6 +440,22 @@ export default function PromptsPage() {
           onDone={load}
         />
       )}
+    </div>
+  );
+}
+
+// ── Helper component ─────────────────────────────────────────────────────────
+function StatCard({ value, label, sub, color, Icon }: { value: string; label: string; sub: string; color: string; Icon: React.FC<{ size?: number; style?: React.CSSProperties }> }) {
+  return (
+    <div style={{ ...card, padding: "18px 20px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.55)" }}>{label}</span>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon size={14} style={{ color }} />
+        </div>
+      </div>
+      <p style={{ fontSize: 28, fontWeight: 800, color: "#fff", lineHeight: 1, letterSpacing: "-0.5px", margin: "0 0 4px" }}>{value}</p>
+      {sub && <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: 0 }}>{sub}</p>}
     </div>
   );
 }

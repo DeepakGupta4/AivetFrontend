@@ -10,10 +10,45 @@ import {
 
 const card: React.CSSProperties = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12 };
 
+// Honest plan features — only what AIVET actually ships today.
+// Internal key "pro" renders publicly as "Business".
 const PLANS = [
-  { key: "starter", name: "Starter", price: 49, icon: Zap, color: "#22B8CF", features: ["3 projects", "1,000 prompts/month", "4 AI models", "Basic GEO recommendations", "CSV export"] },
-  { key: "pro", name: "Pro", price: 149, icon: Crown, color: "#C9F31D", features: ["10 projects", "10,000 prompts/month", "All AI engines", "Advanced GEO engine", "PDF reports", "Competitor tracking", "Scheduled reports"] },
-  { key: "enterprise", name: "Enterprise", price: 499, icon: Building2, color: "#C084FC", features: ["50 projects", "100,000 prompts/month", "All AI models", "White-label reports", "Custom integrations", "Dedicated support", "SLA guarantee"] },
+  {
+    key: "starter", name: "Starter", price: 10, icon: Zap, color: "#22B8CF",
+    features: [
+      "1 brand · up to 5 competitors",
+      "All 5 AI engines",
+      "Up to 6 prompts per audit",
+      "Weekly auto-audit cadence",
+      "Visibility scoring + trend tracking",
+      "Citations tracking",
+      "PDF report export",
+    ],
+  },
+  {
+    key: "pro", name: "Business", price: 20, icon: Crown, color: "#C9F31D",
+    features: [
+      "7 brands · up to 10 competitors each",
+      "All 5 AI engines + factor breakdown",
+      "Up to 8 prompts per audit",
+      "Daily auto-audit cadence",
+      "GEO recommendations engine",
+      "Competitor share-of-voice analysis",
+      "Everything in Starter",
+    ],
+  },
+  {
+    key: "enterprise", name: "Enterprise", price: 49, icon: Building2, color: "#C084FC",
+    features: [
+      "15 brands · up to 15 competitors each",
+      "All 5 AI engines + advanced breakdown",
+      "Up to 8 prompts per audit",
+      "Daily auto-audit cadence",
+      "Bulk PDF report generation",
+      "Priority email support",
+      "Everything in Business",
+    ],
+  },
 ];
 
 export default function BillingPage() {

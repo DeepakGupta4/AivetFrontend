@@ -22,10 +22,10 @@ type NavItem = { href: string; icon: typeof Eye; label: string; feature?: string
 const MAIN_ITEMS: NavItem[] = [
   { href: "/overview",    icon: LayoutDashboard, label: "Overview" },
   { href: "/visibility",  icon: Eye,             label: "AI Visibility" },
-  { href: "/prompts",     icon: Zap,             label: "Prompt Campaigns" },
+  { href: "/prompts",     icon: Zap,             label: "Audits", feature: "prompts" },
   { href: "/competitors", icon: Users2,          label: "Competitors", feature: "competitors" },
-  { href: "/citations",   icon: Link2,           label: "Citations" },
-  { href: "/geo",         icon: Sparkles,        label: "GEO Recommendations", feature: "geo" },
+  { href: "/citations",   icon: Link2,           label: "Citations", feature: "citations" },
+  { href: "/geo",         icon: Sparkles,        label: "Recommendations", feature: "geo" },
   { href: "/reports",     icon: FileText,        label: "Reports", feature: "reports" },
 ];
 

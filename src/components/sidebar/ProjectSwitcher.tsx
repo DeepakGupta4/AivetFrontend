@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, Plus, Check, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, Plus, Check, Trash2, Lock } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/authStore";
 import { projectsApi, type ProjectDTO } from "@/lib/api/projects";
+import { useTier } from "@/lib/hooks/useTier";
 import BrandLogo from "@/components/shared/BrandLogo";
 import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 
@@ -15,10 +17,14 @@ export default function ProjectSwitcher() {
   const projectId    = useAuthStore((s) => s.projectId);
   const setProject   = useAuthStore((s) => s.setProject);
   const clearProject = useAuthStore((s) => s.clearProject);
+  const { tier, limits } = useTier();
 
   const [projects, setProjects] = useState<ProjectDTO[]>([]);
   const [open, setOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
+
+  const projectLimit = limits?.projectLimit ?? 1;
+  const atBrandLimit = projects.length >= projectLimit;
 
   useEffect(() => {
     if (!token) return;
@@ -173,21 +179,42 @@ export default function ProjectSwitcher() {
 
             <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "6px 0" }} />
 
-            <button
-              onClick={() => { setShowModal(true); setOpen(false); }}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", gap: 9,
-                padding: "8px 8px", borderRadius: 7, border: "none", cursor: "pointer",
-                background: "transparent", color: LIME, fontSize: 12.5, fontWeight: 600,
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(201,243,29,0.08)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-            >
-              <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, background: "rgba(201,243,29,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Plus size={14} />
-              </div>
-              Add new brand
-            </button>
+            {atBrandLimit ? (
+              <Link
+                href="/pricing"
+                onClick={() => setOpen(false)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 9,
+                  padding: "8px 8px", borderRadius: 7, textDecoration: "none",
+                  background: "transparent", color: "rgba(255,255,255,0.55)", fontSize: 12.5, fontWeight: 600,
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                title={`Your ${tier} plan allows ${projectLimit} brand${projectLimit === 1 ? "" : "s"}. Upgrade to add more.`}
+              >
+                <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, background: "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Lock size={12} style={{ color: "rgba(255,255,255,0.55)" }} />
+                </div>
+                <span style={{ flex: 1, minWidth: 0 }}>Add new brand</span>
+                <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, background: "rgba(201,243,29,0.12)", color: LIME, letterSpacing: "0.04em" }}>UPGRADE</span>
+              </Link>
+            ) : (
+              <button
+                onClick={() => { setShowModal(true); setOpen(false); }}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 9,
+                  padding: "8px 8px", borderRadius: 7, border: "none", cursor: "pointer",
+                  background: "transparent", color: LIME, fontSize: 12.5, fontWeight: 600,
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(201,243,29,0.08)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              >
+                <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, background: "rgba(201,243,29,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Plus size={14} />
+                </div>
+                Add new brand
+              </button>
+            )}
           </div>
         </>
       )}

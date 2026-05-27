@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { queryClient } from "../queryClient";
 
 interface AuthUser {
   id: string;
@@ -47,6 +48,10 @@ export const useAuthStore = create<AuthState>()(
         if (typeof window !== "undefined") localStorage.setItem("access_token", token);
         // Clear any brand selected by a previous session/account — it may not
         // belong to this user. SessionBootstrap re-selects the right one.
+        // Also nuke the React Query cache so the previous user's subscription,
+        // dashboard, projects etc. don't bleed across an account switch (this
+        // was showing the wrong plan badge after re-login).
+        queryClient.clear();
         set({ token, user, project: null, projectId: null });
       },
 
@@ -60,6 +65,8 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         if (typeof window !== "undefined") localStorage.removeItem("access_token");
+        // Drop cached data tied to the signed-out user.
+        queryClient.clear();
         set({ token: null, user: null, projectId: null, project: null });
       },
     }),

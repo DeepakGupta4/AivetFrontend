@@ -5,10 +5,15 @@ export const TIER_LABEL: Record<Tier, string> = { free: "Free", starter: "Starte
 export const NEXT_TIER: Record<Tier, Tier | null> = { free: "starter", starter: "pro", pro: "enterprise", enterprise: null };
 
 // Minimum tier required to use a feature (keyed by route slug).
+// Free tier is the Ubersuggest-style preview — only Overview + 1 brand + a
+// capped audit. Everything substantive sits behind starter+ at minimum.
+// Reports (PDF export) is a Starter promise per the billing copy.
 export const FEATURE_MIN_TIER: Record<string, Tier> = {
   competitors: "pro",
   geo: "pro",
-  reports: "pro",
+  reports: "starter",
+  citations: "starter",
+  prompts: "starter",
 };
 
 export function tierAllows(userTier: Tier, feature: string): boolean {

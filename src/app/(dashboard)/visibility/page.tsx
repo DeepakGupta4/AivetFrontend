@@ -5,11 +5,13 @@ import Link from "next/link";
 import Topbar from "@/components/shared/Topbar";
 import ScoreGauge from "@/components/charts/ScoreGauge";
 import TrendChart from "@/components/charts/TrendChart";
+import BrandsVisibilityByTopic from "@/components/charts/BrandsVisibilityByTopic";
 import VisibilityBoostGuide from "@/components/shared/VisibilityBoostGuide";
 import { useAuthStore } from "@/lib/stores/authStore";
-import { visibilityApi, type ModelBreakdownDTO } from "@/lib/api/visibility";
+import { useTier } from "@/lib/hooks/useTier";
+import { visibilityApi, type ModelBreakdownDTO, type BrandsByTopicData } from "@/lib/api/visibility";
 import { engineColors, getScoreBand } from "@/lib/colors";
-import { TrendingUp, TrendingDown, MessageSquare, Hash, Smile, Link2, AlertCircle, RefreshCw, Zap, ArrowRight } from "lucide-react";
+import { TrendingUp, TrendingDown, MessageSquare, Hash, Smile, Link2, AlertCircle, RefreshCw, Zap, ArrowRight, Eye, BarChart3 } from "lucide-react";
 import type { TrendPoint } from "@/types";
 
 // ── Brand logos ─────────────────────────────────────────────────────────────
@@ -79,9 +81,12 @@ const MOCK_TREND: TrendPoint[] = [
 export default function VisibilityPage() {
   const project   = useAuthStore((s) => s.project);
   const projectId = useAuthStore((s) => s.projectId);
+  const { tier } = useTier();
 
   const [days, setDays]       = useState(30);
   const [data, setData]       = useState<Awaited<ReturnType<typeof visibilityApi.getVisibility>> | null>(null);
+  const [dashboard, setDashboard] = useState<Awaited<ReturnType<typeof visibilityApi.getDashboard>> | null>(null);
+  const [topicData, setTopicData] = useState<BrandsByTopicData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
   const [tick, setTick]       = useState(0);
@@ -90,8 +95,17 @@ export default function VisibilityPage() {
     if (!projectId) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true); setError(null);
-    visibilityApi.getVisibility(projectId, days)
-      .then((d) => { if (!cancelled) setData(d); })
+    Promise.all([
+      visibilityApi.getVisibility(projectId, days),
+      visibilityApi.getDashboard(projectId, days).catch(() => null),
+      visibilityApi.getBrandsByTopic(projectId, days).catch(() => null),
+    ])
+      .then(([v, d, t]) => {
+        if (cancelled) return;
+        setData(v);
+        setDashboard(d);
+        setTopicData(t);
+      })
       .catch((e: Error) => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -135,6 +149,56 @@ export default function VisibilityPage() {
           </div>
         ) : (
           <>
+            {/* ROW 0: Ubersuggest-style top KPI cards */}
+            {dashboard && (() => {
+              const brandShare = dashboard.competitors.find((c) => c.isOwn)?.score ?? 0;
+              const sortedComps = [...dashboard.competitors].sort((a, b) => b.score - a.score);
+              const ownRank = sortedComps.findIndex((c) => c.isOwn) + 1;
+              const totalPrompts = dashboard.kpis.totalPrompts;
+              const totalMentions = dashboard.kpis.totalMentions;
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                  {/* Brand Visibility % */}
+                  <div style={{ ...card, padding: "18px 22px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.55)" }}>Brand Visibility</span>
+                      <Eye size={14} style={{ color: "#C9F31D" }} />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span style={{ fontSize: 34, fontWeight: 800, color: "#fff", lineHeight: 1, letterSpacing: "-0.5px" }}>{brandShare}%</span>
+                    </div>
+                    <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.42)", margin: "8px 0 0" }}>of responses mention you</p>
+                  </div>
+
+                  {/* Your Industry Rank */}
+                  <div style={{ ...card, padding: "18px 22px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.55)" }}>Your Industry Rank</span>
+                      <BarChart3 size={14} style={{ color: "#22B8CF" }} />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span style={{ fontSize: 34, fontWeight: 800, color: "#fff", lineHeight: 1, letterSpacing: "-0.5px" }}>{ownRank > 0 ? `#${ownRank}` : "—"}</span>
+                      <span style={{ fontSize: 12.5, color: "rgba(255,255,255,0.40)" }}>of {sortedComps.length}</span>
+                    </div>
+                    <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.42)", margin: "8px 0 0" }}>among detected brands</p>
+                  </div>
+
+                  {/* Analyzed Data */}
+                  <div style={{ ...card, padding: "18px 22px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.55)" }}>Analyzed Data</span>
+                      <MessageSquare size={14} style={{ color: "#C084FC" }} />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span style={{ fontSize: 34, fontWeight: 800, color: "#fff", lineHeight: 1, letterSpacing: "-0.5px" }}>{totalMentions}</span>
+                      <span style={{ fontSize: 12.5, color: "rgba(255,255,255,0.40)" }}>mentions</span>
+                    </div>
+                    <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.42)", margin: "8px 0 0" }}>across {totalPrompts} prompt{totalPrompts === 1 ? "" : "s"}</p>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ROW 1: Overall Score + Trend */}
             <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
               <div style={{ ...card, width: 240, flexShrink: 0, padding: 24, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
@@ -150,6 +214,15 @@ export default function VisibilityPage() {
                 <TrendChart data={trend} />
               </div>
             </div>
+
+            {/* ROW 1.5: Brands Visibility By Topic (Ubersuggest-style) */}
+            {topicData && topicData.topics.length > 0 && (
+              <BrandsVisibilityByTopic
+                topics={topicData.topics}
+                brandName={topicData.brandName}
+                locked={tier === "free" ? 5 : 0}
+              />
+            )}
 
             {/* Boost guide when visibility is low */}
             {!loading && !!data && score < 20 && (

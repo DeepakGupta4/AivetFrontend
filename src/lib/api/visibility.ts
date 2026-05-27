@@ -114,6 +114,25 @@ export interface CitationsData {
   opportunities:  CitationSource[];
 }
 
+export interface TopicBrandDTO {
+  name:     string;
+  mentions: number;
+  avgRank:  number | null;
+  isOwn:    boolean;
+  position: number;
+}
+
+export interface TopicRowDTO {
+  topic:     string;
+  responses: number;
+  brands:    TopicBrandDTO[];
+}
+
+export interface BrandsByTopicData {
+  topics:    TopicRowDTO[];
+  brandName: string;
+}
+
 export const visibilityApi = {
   getDashboard: (projectId: string, days = 30) =>
     api.get<DashboardData>(`/projects/${projectId}/dashboard?days=${days}`),
@@ -129,6 +148,9 @@ export const visibilityApi = {
 
   getGeo: (projectId: string, days = 30) =>
     api.get<GeoData>(`/projects/${projectId}/geo?days=${days}`),
+
+  getBrandsByTopic: (projectId: string, days = 30) =>
+    api.get<BrandsByTopicData>(`/projects/${projectId}/brands-by-topic?days=${days}`),
 };
 
 export interface GeoRecommendation {
